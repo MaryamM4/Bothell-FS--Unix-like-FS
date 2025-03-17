@@ -233,7 +233,7 @@ i32 fsWrite(i32 fd, i32 numb, void *buf) {
     return EBADCURS;
   }
 
-  // If file doesn't have enough blocks, allocate some
+  // If file doesn't have enough blocks, allocate new DBN blocks.
   if ((fsSize(fd) - cursorPos) < numb) {
     i32 lastFbn = fsCursorPosToFdn(cursorPos + numb);
     bfsExtend(inum, lastFbn);
@@ -295,6 +295,12 @@ i32 fsWrite(i32 fd, i32 numb, void *buf) {
 
     bytesWritten += remainder;
     fsSeek(fd, remainder, SEEK_CUR);
+  }
+
+  // Update inode's filesize if needed.
+  i32 finalPos = fsTell(fd);
+  if (finalPos > bfsGetSize(inum)) {
+    bfsSetSize(inum, finalPos);
   }
 
   return bytesWritten;
