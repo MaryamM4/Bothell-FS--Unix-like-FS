@@ -219,12 +219,88 @@ i32 fsSize(i32 fd) {
 // destination file.  On success, return 0.  On failure, abort
 // ============================================================================
 i32 fsWrite(i32 fd, i32 numb, void *buf) {
+  i32 bytesWritten = 0;
+  const i32 inum = bfsFdToInum(fd);
 
-  // ++++++++++++++++++++++++
-  // Insert your code here
-  // ++++++++++++++++++++++++
+  i8 *bufItr = (i8 *)buf; // For iterating buf's write-to
+  i32 cursorPos = fsTell(fd);
+  i32 fbn = fsCursorPosToFdn(cursorPos);
+  i32 dbn = bfsFbnToDbn(inum, fbn); // bfsWrite() missing.
 
-  FATAL(ENYI); // Not Yet Implemented!
+  // We might not be able to write as many bytes as requested
+  // if not enough of the file left.
+  i32 bytesAvailable =
+      (fsSize(fd) - cursorPos > numb) ? numb : fsSize(fd) - cursorPos;
+
+  // Error/Boundary checks:
+  if (cursorPos < 0 || cursorPos == EBADCURS) {
+    FATAL(EBADCURS); // Invalid cursor.
+    return EBADCURS;
+  }
+  if (cursorPos >= fsSize(fd)) {
+    return 0; // At EOF, nothing to write.
+  }
+
+  // =============================
+  // FIRST PARTIAL BLOCK (if any)
+  i32 offset = cursorPos % BYTESPERBLOCK;
+  if (offset > 0) {
+    // Will need to write back left portion
+    i8 temp[BYTESPERBLOCK];
+    bfsRead(inum, fbn, temp);
+
+    // Add to bytes read, ignoring part that will be discarded.
+    // Bytes read shouldn't be > bytesAvailable.
+    bytesWritten = (BYTESPERBLOCK - offset > bytesAvailable)
+                       ? bytesAvailable
+                       : BYTESPERBLOCK - offset;
+
+    // Copy right portion from buf to left side of temp.
+    memcpy(temp + offset, bufItr, bytesWritten);
+
+    // Now we write temp to the file
+    bioWrite(dbn, temp);
+
+    // Update iteratives
+    bufItr += offset;
+    fsSeek(fd, bytesWritten, SEEK_CUR);
+  }
+
+  // =============================
+  // FULL BLOCK(s) (if any)
+  while (bytesAvailable - bytesWritten >= BYTESPERBLOCK) {
+    fbn = fsFdToFdn(fd);
+    dbn = bfsFbnToDbn(inum, fbn);
+
+    bioWrite(dbn, bufItr);
+
+    // Update buf ptr, read count, and cursor position.
+    bufItr += BYTESPERBLOCK;
+    bytesWritten += BYTESPERBLOCK;
+    fsSeek(fd, BYTESPERBLOCK, SEEK_CUR);
+  }
+
+  // =============================
+  // LAST PARTIAL BLOCK (if any)
+  i32 remainder = bytesAvailable - bytesWritten;
+  if (remainder > 0) {
+    i8 temp[BYTESPERBLOCK];
+
+    fbn = fsFdToFdn(fd);
+    bfsRead(inum, fbn, temp);
+
+    // Copy left portion from buf to right side of temp.
+    memcpy(temp, bufItr, remainder);
+
+    // Now write
+    fbn = fsFdToFdn(fd);
+    dbn = bfsFbnToDbn(inum, fbn);
+    bioWrite(dbn, temp);
+
+    bytesWritten += remainder;
+    fsSeek(fd, remainder, SEEK_CUR);
+  }
+
   return 0;
 }
 
