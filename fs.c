@@ -87,16 +87,79 @@ i32 fsOpen(str fname) {
 // ============================================================================
 // Read 'numb' bytes of data from the cursor in the file currently fsOpen'd on
 // File Descriptor 'fd' into 'buf'.  On success, return actual number of bytes
-// read (may be less than 'numb' if we hit EOF).  On failure, abort
+// read (may be less than 'numb' if we hit EOF).  On failure, abort.
 // ============================================================================
 i32 fsRead(i32 fd, i32 numb, void *buf) {
+  i32 bytesRead = 0;
+  const i32 inum = bfsFdToInum(fd);
 
-  // ++++++++++++++++++++++++
-  // Insert your code here
-  // ++++++++++++++++++++++++
+  // Iterative variables:
+  i8 *bufItr = (i8 *)buf; // For iterating buf's write-to
+  i32 cursorPos = fsTell(fd);
+  i32 fbn = fsCursorPosToFdn(cursorPos);
 
-  FATAL(ENYI); // Not Yet Implemented!
-  return 0;
+  // We might not be able to read as many bytes as requested
+  // if not enough of the file left.
+  i32 bytesAvailable =
+      (fsSize(fd) - cursorPos > numb) ? numb : fsSize(fd) - cursorPos;
+
+  // Error/Boundary checks:
+  if (cursorPos < 0 || cursorPos == EBADCURS) {
+    FATAL(EBADCURS); // Invalid cursor.
+    return EBADCURS;
+  }
+  if (cursorPos >= fsSize(fd)) {
+    return 0; // At EOF, nothing to read.
+  }
+
+  // =============================
+  // FIRST PARTIAL BLOCK (if any)
+  i32 offset = cursorPos % BYTESPERBLOCK;
+  if (offset > 0) {
+    i8 temp[BYTESPERBLOCK];
+    bfsRead(inum, fbn, temp);
+
+    // Add to bytes read, ignoring part that will be discarded.
+    // Bytes read shouldn't be > bytesAvailable.
+    bytesRead = (BYTESPERBLOCK - offset > bytesAvailable)
+                    ? bytesAvailable
+                    : BYTESPERBLOCK - offset;
+
+    // Copy desired (right) portion from temp to buffer.
+    memcpy(bufItr, temp + offset, bytesRead);
+
+    // Update iterative buffer pointer and file cursor
+    bufItr += bytesRead;
+    fsSeek(fd, bytesRead, SEEK_CUR);
+  }
+
+  // =============================
+  // FULL BLOCK(s) (if any)
+  while (bytesAvailable - bytesRead >= BYTESPERBLOCK) {
+    fbn = fsFdToFdn(fd);
+    bfsRead(inum, fbn, bufItr);
+
+    // Update buf ptr, read count, and cursor position.
+    bufItr += BYTESPERBLOCK;
+    bytesRead += BYTESPERBLOCK;
+    fsSeek(fd, BYTESPERBLOCK, SEEK_CUR);
+  }
+
+  // =============================
+  // LAST PARTIAL BLOCK (if any)
+  i32 remainder = bytesAvailable - bytesRead;
+  if (remainder > 0) {
+    i8 temp[BYTESPERBLOCK];
+
+    fbn = fsFdToFdn(fd);
+    bfsRead(inum, fbn, temp);
+
+    memcpy(bufItr, temp, remainder);
+    bytesRead += remainder;
+    fsSeek(fd, remainder, SEEK_CUR);
+  }
+
+  return bytesRead;
 }
 
 // ============================================================================
