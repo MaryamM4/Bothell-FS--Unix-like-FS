@@ -93,6 +93,15 @@ i32 fsRead(i32 fd, i32 numb, void *buf) {
   i32 bytesRead = 0;
   const i32 inum = bfsFdToInum(fd);
 
+  // If buf is NULL, allocate a buffer of size numb.
+  if (buf == NULL) {
+    buf = malloc(numb);
+    if (buf == NULL) {
+      FATAL(ENOMEM); // Allocation failed.
+      return ENOMEM;
+    }
+  }
+
   // Iterative variables:
   i8 *bufItr = (i8 *)buf; // For iterating buf's write-to
   i32 cursorPos = fsTell(fd);
@@ -104,6 +113,12 @@ i32 fsRead(i32 fd, i32 numb, void *buf) {
       (fsSize(fd) - cursorPos > numb) ? numb : fsSize(fd) - cursorPos;
 
   // Error/Boundary checks:
+  if (numb < 0) {
+    FATAL(ENEGNUMB);
+    return ENEGNUMB;
+  } else if (numb == 0) {
+    return 0;
+  }
   if (cursorPos < 0 || cursorPos == EBADCURS) {
     FATAL(EBADCURS); // Invalid cursor.
     return EBADCURS;
@@ -222,12 +237,28 @@ i32 fsWrite(i32 fd, i32 numb, void *buf) {
   i32 bytesWritten = 0;
   const i32 inum = bfsFdToInum(fd);
 
+  // If buf is NULL, allocate a buffer of size numb.
+  if (buf == NULL) {
+    buf = malloc(numb);
+    if (buf == NULL) {
+      FATAL(ENOMEM); // Allocation failed.
+      return ENOMEM;
+    }
+  }
+
   i8 *bufItr = (i8 *)buf; // For iterating buf's write-to
   i32 cursorPos = fsTell(fd);
   i32 fbn;
   i32 dbn; // bfsWrite() missing.
 
   // Error/Boundary checks:
+  if (numb < 0) {
+    FATAL(ENEGNUMB);
+    return ENEGNUMB;
+  }
+  if (numb == 0) {
+    return 0;
+  }
   if (cursorPos < 0 || cursorPos == EBADCURS) {
     FATAL(EBADCURS); // Invalid cursor.
     return EBADCURS;
