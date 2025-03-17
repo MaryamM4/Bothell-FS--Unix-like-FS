@@ -303,7 +303,7 @@ i32 fsWrite(i32 fd, i32 numb, void *buf) {
     bfsSetSize(inum, finalPos);
   }
 
-  return bytesWritten;
+  return 0;
 }
 
 // ============================================================================
