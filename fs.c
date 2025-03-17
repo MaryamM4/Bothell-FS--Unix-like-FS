@@ -93,13 +93,10 @@ i32 fsRead(i32 fd, i32 numb, void *buf) {
   i32 bytesRead = 0;
   const i32 inum = bfsFdToInum(fd);
 
-  // If buf is NULL, allocate a buffer of size numb.
+  // No buffer -> fail
   if (buf == NULL) {
-    buf = malloc(numb);
-    if (buf == NULL) {
-      FATAL(ENOMEM); // Allocation failed.
-      return ENOMEM;
-    }
+    FATAL(ENOMEM);
+    return ENOMEM;
   }
 
   // Iterative variables:
@@ -237,13 +234,10 @@ i32 fsWrite(i32 fd, i32 numb, void *buf) {
   i32 bytesWritten = 0;
   const i32 inum = bfsFdToInum(fd);
 
-  // If buf is NULL, allocate a buffer of size numb.
+  // No buffer -> fail
   if (buf == NULL) {
-    buf = malloc(numb);
-    if (buf == NULL) {
-      FATAL(ENOMEM); // Allocation failed.
-      return ENOMEM;
-    }
+    FATAL(ENOMEM);
+    return ENOMEM;
   }
 
   i8 *bufItr = (i8 *)buf; // For iterating buf's write-to
